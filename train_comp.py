@@ -10,7 +10,7 @@ import yaml
 from torchaudio import load
 from torchcomp import ms2coef, coef2ms, db2amp
 
-from utils import arcsigmoid, compressor, simple_compressor
+from utils import arcsigmoid, compressor, simple_compressor, freq_simple_compressor
 
 
 @hydra.main(config_path="cfg", config_name="config")
@@ -66,7 +66,12 @@ def train(cfg: DictConfig):
     comp_delay = cfg.compressor.delay
 
     if cfg.compressor.simple:
-        infer = lambda x: simple_compressor(
+        runner = (
+            simple_compressor
+            if not cfg.compressor.freq_sampling
+            else freq_simple_compressor
+        )
+        infer = lambda x: runner(
             x,
             avg_coef=param_rms_avg(),
             th=param_th,
