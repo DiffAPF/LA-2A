@@ -6,11 +6,12 @@ import hydra
 from omegaconf import OmegaConf, DictConfig
 from functools import partial, reduce
 from itertools import chain, starmap, accumulate
+from typing import Any, Dict, List, Tuple
 import yaml
 from torchaudio import load
 from torchcomp import ms2coef, coef2ms, db2amp
 
-from utils import arcsigmoid, compressor, simple_compressor, freq_simple_compressor
+from utils import arcsigmoid, compressor, simple_compressor, freq_simple_compressor, esr
 
 
 @hydra.main(config_path="cfg", config_name="config")
@@ -34,6 +35,10 @@ def train(cfg: DictConfig):
 
     m2c = partial(ms2coef, sr=sr)
     c2m = partial(coef2ms, sr=sr)
+
+    config: Any = OmegaConf.to_container(cfg)
+    wandb_init = config.pop("wandb_init", {})
+    run: Any = wandb.init(config=config, **wandb_init)
 
     # initialize model
     inits = cfg.compressor.inits
@@ -105,56 +110,97 @@ def train(cfg: DictConfig):
     # initialize loss function
     loss_fn = hydra.utils.instantiate(cfg.loss_fn)
 
+    def dump_params(loss=None):
+        # convert parms to dict for yaml
+        final_params = {k: v.item() for k, v in params.items()}
+
+        formated = {
+            "attack_ms": c2m(param_at()).item(),
+            "ratio": param_ratio().item(),
+            "rms_avg": param_rms_avg().item(),
+            "rms_avg_ms": c2m(param_rms_avg()).item(),
+        }
+        if not cfg.compressor.simple:
+            formated["release_ms"] = c2m(param_rt()).item()
+
+        final_params["formated_params"] = formated
+        if loss is not None:
+            final_params["loss"] = loss
+        return final_params
+
+    final_params = dump_params()
+
     with tqdm(range(cfg.epochs)) as pbar:
 
-        def step(prev_loss: torch.Tensor, global_step: int):
+        def step(lowest_loss: torch.Tensor, global_step: int):
             optimiser.zero_grad()
             pred = infer(train_input)
             loss = loss_fn(pred, train_target)
+
+            if lowest_loss > loss:
+                lowest_loss = loss.item()
+                final_params.update(dump_params(lowest_loss))
+
             loss.backward()
             optimiser.step()
             scheduler.step()
 
-            pbar.set_postfix(
-                loss=loss.item(),
-                avg_coef=param_rms_avg().item(),
-                ratio=param_ratio().item(),
-                th=param_th.item(),
-                attack_ms=c2m(param_at()).item(),
-                make_up=param_make_up_gain.item(),
-                lr=optimiser.param_groups[0]["lr"],
-            )
+            pbar_dict = {
+                "loss": loss.item(),
+                "lowest_loss": lowest_loss,
+                "avg_coef": param_rms_avg().item(),
+                "ratio": param_ratio().item(),
+                "th": param_th.item(),
+                "attack_ms": c2m(param_at()).item(),
+                "make_up": param_make_up_gain.item(),
+                "lr": optimiser.param_groups[0]["lr"],
+            }
             if not cfg.compressor.simple:
-                pbar.set_postfix(release_ms=c2m(param_rt()).item())
+                pbar_dict["release_ms"] = c2m(param_rt()).item()
 
-            return loss.item()
+            pbar.set_postfix(**pbar_dict)
+
+            wandb.log(pbar_dict, step=global_step)
+
+            return lowest_loss
 
         try:
-            _, *losses = list(accumulate(pbar, step, initial=None))
+            losses = list(accumulate(pbar, step, initial=torch.inf))
         except KeyboardInterrupt:
             print("Training interrupted")
 
     if test_input is not None:
         pred = infer(test_input)
         test_loss = loss_fn(pred, test_target)
+        esr_val = esr(pred, test_target).item()
         print(f"Test loss: {test_loss.item()}")
-
-    # convert parms to dict for yaml
-    final_params = {k: v.item() for k, v in params.items()}
-
-    formated = {
-        "attack_ms": c2m(param_at()).item(),
-        "release_ms": c2m(param_rt()).item(),
-        "ratio": param_ratio().item(),
-    }
-    if not cfg.compressor.simple:
-        formated["rms_avg_ms"] = c2m(param_rms_avg()).item()
-
-    final_params["formated_params"] = formated
+        print((f"Test ESR: {esr_val}"))
+        wandb.log({"test_loss": test_loss.item(), "test_esr": esr_val})
 
     print("Training complete. Saving model...")
     if cfg.ckpt_path:
-        yaml.dump_all([final_params, losses], open(cfg.ckpt_path, "w"))
+        yaml.dump(final_params, open(cfg.ckpt_path, "w"), sort_keys=True)
+        wandb.log_artifact(cfg.ckpt_path, type="parameters")
+
+    # run.summary["loss"] = final_params["loss"]
+    # run.summary["avg_coef"] = final_params["formated_params"]["rms_avg"]
+    # run.summary["ratio"] = final_params["formated_params"]["ratio"]
+    # run.summary["th"] = final_params["threshold"]
+    # run.summary["attack_ms"] = final_params["formated_params"]["attack_ms"]
+    # run.summary["make_up"] = final_params["make_up_gain"]
+    # if not cfg.compressor.simple:
+    #     run.summary["release_ms"] = final_params["formated_params"]["release_ms"]
+
+    summary = {
+        "loss": final_params["loss"],
+        "avg_coef": final_params["formated_params"]["rms_avg"],
+        "ratio": final_params["formated_params"]["ratio"],
+        "th": final_params["threshold"],
+        "attack_ms": final_params["formated_params"]["attack_ms"],
+        "make_up": final_params["make_up_gain"],
+    }
+
+    run.summary.update(summary)
 
     print("Final parameters:")
     print(final_params)
