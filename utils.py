@@ -35,9 +35,7 @@ def simple_compressor(x, avg_coef, th, ratio, at, *args, **kwargs):
 def freq_sampling(x, coef):
     x_freq = torch.fft.rfft(x)
     freqs = torch.exp(-2j * torch.pi * torch.fft.rfftfreq(x.shape[1]))
-    return torch.fft.irfft(
-        x_freq * coef[:, None] / (1 - (1 - coef[:, None]) * freqs)
-    )
+    return torch.fft.irfft(x_freq * coef[:, None] / (1 - (1 - coef[:, None]) * freqs))
 
 
 def freq_simple_compressor(x, avg_coef, th, ratio, at, make_up, delay: int = 0):
@@ -64,3 +62,7 @@ def freq_simple_compressor(x, avg_coef, th, ratio, at, make_up, delay: int = 0):
     if delay > 0:
         x = torch.cat([x[:, :-delay], x.new_zeros(x.shape[0], delay)], dim=1)
     return x * gain * db2amp(make_up).unsqueeze(1)
+
+
+def esr(pred, target):
+    return ((pred - target).norm()) / (target.norm())
