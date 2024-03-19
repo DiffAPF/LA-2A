@@ -24,7 +24,7 @@ def compressor(x, avg_coef, th, ratio, at, rt, make_up, delay: int = 0):
         rt=rt,
     )
     if delay > 0:
-        x = torch.cat([x[:, :-delay], x.new_zeros(x.shape[0], delay)], dim=1)
+        gain = torch.cat([gain[:, delay:], gain.new_ones(gain.shape[0], delay)], dim=1)
     return x * gain * db2amp(make_up).broadcast_to(x.shape[0], 1)
 
 
@@ -60,7 +60,7 @@ def freq_simple_compressor(x, avg_coef, th, ratio, at, make_up, delay: int = 0):
     gain = freq_sampling(f - 1, at) + 1
 
     if delay > 0:
-        x = torch.cat([x[:, :-delay], x.new_zeros(x.shape[0], delay)], dim=1)
+        gain = torch.cat([gain[:, delay:], gain.new_ones(gain.shape[0], delay)], dim=1)
     return x * gain * db2amp(make_up).unsqueeze(1)
 
 
