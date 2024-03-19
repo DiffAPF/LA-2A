@@ -60,7 +60,7 @@ if __name__ == "__main__":
     parser.add_argument("--freq-min-ms", type=float, default=0.1)
     parser.add_argument("--freq-max-ms", type=float, default=30)
     parser.add_argument("--freq-lfo-rate", type=float, default=0.37)
-    parser.add_argument("--amp-min-ms", type=float, default=50)
+    parser.add_argument("--amp-min-ms", type=float, default=200)
     parser.add_argument("--amp-max-ms", type=float, default=1000)
     parser.add_argument("--amp-lfo-rate", type=float, default=1.3)
     parser.add_argument("--duration", type=float, default=30)
