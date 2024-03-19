@@ -21,8 +21,12 @@ def train(cfg: DictConfig):
     train_input, sr = load(cfg.data.train_input)
     train_target, sr2 = load(cfg.data.train_target)
     assert sr == sr2, "Sample rates must match"
+    if cfg.data.train_duration:
+        train_input = train_input[:, : int(sr * cfg.data.train_duration)]
+        train_target = train_target[:, : int(sr * cfg.data.train_duration)]
+
     assert train_input.shape == train_target.shape, "Input and target shapes must match"
-    if cfg.data.test_input:
+    if "test_input" in cfg.data and cfg.data.test_input:
         test_input, sr3 = load(cfg.data.test_input)
         assert sr == sr3, "Sample rates must match"
         test_target, sr4 = load(cfg.data.test_target)
