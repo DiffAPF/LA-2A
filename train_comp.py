@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Tuple
 import yaml
 from torchaudio import load
 from torchcomp import ms2coef, coef2ms, db2amp
+import pyloudnorm as pyln
 
 from utils import arcsigmoid, compressor, simple_compressor, freq_simple_compressor, esr
 
@@ -18,22 +19,40 @@ from utils import arcsigmoid, compressor, simple_compressor, freq_simple_compres
 def train(cfg: DictConfig):
     # TODO: Add a proper logger
 
-    train_input, sr = load(cfg.data.train_input)
-    train_target, sr2 = load(cfg.data.train_target)
+    tr_cfg = cfg.data.train
+
+    train_input, sr = load(tr_cfg.input)
+    train_target, sr2 = load(tr_cfg.target)
     assert sr == sr2, "Sample rates must match"
-    if cfg.data.train_duration:
-        train_input = train_input[:, : int(sr * cfg.data.train_duration)]
-        train_target = train_target[:, : int(sr * cfg.data.train_duration)]
+    if tr_cfg.start is not None and tr_cfg.end:
+        train_input = train_input[:, int(sr * tr_cfg.start) : int(sr * tr_cfg.end)]
+        train_target = train_target[:, int(sr * tr_cfg.start) : int(sr * tr_cfg.end)]
 
     assert train_input.shape == train_target.shape, "Input and target shapes must match"
-    if "test_input" in cfg.data and cfg.data.test_input:
-        test_input, sr3 = load(cfg.data.test_input)
+
+    meter = pyln.Meter(sr)
+    loudness = meter.integrated_loudness(train_input.numpy().T)
+    print(f"Train input loudness: {loudness}")
+
+    if "test" in cfg.data:
+        test_cfg = cfg.data.test
+        test_input, sr3 = load(test_cfg.input)
         assert sr == sr3, "Sample rates must match"
-        test_target, sr4 = load(cfg.data.test_target)
+        test_target, sr4 = load(test_cfg.target)
         assert sr == sr4, "Sample rates must match"
         assert (
             test_input.shape == test_target.shape
         ), "Input and target shapes must match"
+        if test_cfg.start is not None and test_cfg.end:
+            test_input = test_input[
+                :, int(sr * test_cfg.start) : int(sr * test_cfg.end)
+            ]
+            test_target = test_target[
+                :, int(sr * test_cfg.start) : int(sr * test_cfg.end)
+            ]
+
+        loudness = meter.integrated_loudness(test_input.numpy().T)
+        print(f"Test input loudness: {loudness}")
     else:
         test_input = test_target = None
 
@@ -139,11 +158,21 @@ def train(cfg: DictConfig):
         def step(lowest_loss: torch.Tensor, global_step: int):
             optimiser.zero_grad()
             pred = infer(train_input)
+
+            if torch.isnan(pred).any():
+                raise ValueError("NaN in prediction")
+
+            if torch.isinf(pred).any():
+                raise ValueError("Inf in prediction")
+
             loss = loss_fn(pred, train_target)
+            with torch.no_grad():
+                esr_val = esr(pred, train_target).item()
 
             if lowest_loss > loss:
                 lowest_loss = loss.item()
                 final_params.update(dump_params(lowest_loss))
+                final_params["esr"] = esr_val
 
             loss.backward()
             optimiser.step()
@@ -158,6 +187,7 @@ def train(cfg: DictConfig):
                 "attack_ms": c2m(param_at()).item(),
                 "make_up": param_make_up_gain.item(),
                 "lr": optimiser.param_groups[0]["lr"],
+                "esr": esr_val,
             }
             if not cfg.compressor.simple:
                 pbar_dict["release_ms"] = c2m(param_rt()).item()
@@ -202,6 +232,7 @@ def train(cfg: DictConfig):
         "th": final_params["threshold"],
         "attack_ms": final_params["formated_params"]["attack_ms"],
         "make_up": final_params["make_up_gain"],
+        "esr": final_params["esr"],
     }
 
     run.summary.update(summary)
