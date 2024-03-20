@@ -32,11 +32,19 @@ def simple_compressor(x, avg_coef, th, ratio, at, *args, **kwargs):
     return compressor(x, avg_coef, th, ratio, at, at, *args, **kwargs)
 
 
+@torch.cuda.amp.autocast(False)
 def freq_sampling(x, coef):
     # casting to double to avoid NaNs
-    x_freq = torch.fft.rfft(x.double()).to(x.dtype)
-    freqs = torch.exp(-2j * torch.pi * torch.fft.rfftfreq(x.shape[1]))
-    return torch.fft.irfft(x_freq * coef[:, None] / (1 - (1 - coef[:, None]) * freqs))
+    x_freq = torch.fft.rfft(x.double())
+    coef = coef.double()
+    freqs = torch.exp(
+        -2j
+        * torch.pi
+        * torch.fft.rfftfreq(x.shape[1], dtype=torch.double, device=x_freq.device)
+    )
+    return torch.fft.irfft(
+        x_freq * coef[:, None] / (1 - (1 - coef[:, None]) * freqs)
+    ).to(x.dtype)
 
 
 def freq_simple_compressor(x, avg_coef, th, ratio, at, make_up, delay: int = 0):
