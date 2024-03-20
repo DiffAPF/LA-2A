@@ -33,7 +33,8 @@ def simple_compressor(x, avg_coef, th, ratio, at, *args, **kwargs):
 
 
 def freq_sampling(x, coef):
-    x_freq = torch.fft.rfft(x)
+    # casting to double to avoid NaNs
+    x_freq = torch.fft.rfft(x.double()).to(x.dtype)
     freqs = torch.exp(-2j * torch.pi * torch.fft.rfftfreq(x.shape[1]))
     return torch.fft.irfft(x_freq * coef[:, None] / (1 - (1 - coef[:, None]) * freqs))
 
