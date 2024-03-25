@@ -43,7 +43,7 @@ def freq_sampling(x, coef):
         * torch.fft.rfftfreq(x.shape[1], dtype=torch.double, device=x_freq.device)
     )
     return torch.fft.irfft(
-        x_freq * coef[:, None] / (1 - (1 - coef[:, None]) * freqs)
+        x_freq * coef[:, None] / (1 - (1 - coef[:, None]) * freqs), n=x.shape[1]
     ).to(x.dtype)
 
 
