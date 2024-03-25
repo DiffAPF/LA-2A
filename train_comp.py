@@ -91,6 +91,12 @@ def train(cfg: DictConfig):
         }
     )
 
+    if cfg.compressor.init_config:
+        init_cfg = yaml.safe_load(open(cfg.compressor.init_config))
+        init_cfg.pop("formated_params", None)
+        init_params = {k: Parameter(torch.tensor(v)) for k, v in init_cfg.items()}
+        params.load_state_dict(init_params, strict=False)
+
     comp_delay = cfg.compressor.delay
 
     if cfg.compressor.simple:
