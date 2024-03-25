@@ -9,6 +9,7 @@ from itertools import chain, starmap, accumulate
 from typing import Any, Dict, List, Tuple
 import yaml
 from torchaudio import load
+from torchaudio.functional import lfilter
 from torchcomp import ms2coef, coef2ms, db2amp
 import pyloudnorm as pyln
 
@@ -139,6 +140,21 @@ def train(cfg: DictConfig):
     # initialize loss function
     loss_fn = hydra.utils.instantiate(cfg.loss_fn)
 
+    prefilter = partial(
+        lfilter,
+        a_coeffs=torch.tensor(
+            [1, -0.995], dtype=torch.float32, device=train_input.device
+        ),
+        b_coeffs=torch.tensor([1, -1], dtype=torch.float32, device=train_input.device),
+        clamp=False,
+    )
+
+    train_target = prefilter(train_target)
+    if test_input is not None:
+        test_target = prefilter(test_target)
+
+    # filtered_esr = lambda x, y: esr(prefilter(x), prefilter(y))
+
     def dump_params(loss=None):
         # convert parms to dict for yaml
         final_params = {k: v.item() for k, v in params.items()}
@@ -170,6 +186,8 @@ def train(cfg: DictConfig):
 
             if torch.isinf(pred).any():
                 raise ValueError("Inf in prediction")
+
+            pred = prefilter(pred)
 
             loss = loss_fn(pred, train_target)
             with torch.no_grad():
@@ -210,26 +228,34 @@ def train(cfg: DictConfig):
             print("Training interrupted")
 
     if test_input is not None:
-        pred = infer(test_input)
+        # load best model
+        params.load_state_dict(
+            {
+                k: torch.tensor(v)
+                for k, v in final_params.items()
+                if k != "formated_params"
+            },
+            strict=False,
+        )
+
+        pred = prefilter(infer(test_input))
+
         test_loss = loss_fn(pred, test_target)
+
         esr_val = esr(pred, test_target).item()
         print(f"Test loss: {test_loss.item()}")
         print((f"Test ESR: {esr_val}"))
-        wandb.log({"test_loss": test_loss.item(), "test_esr": esr_val})
+        wandb.log(
+            {
+                "test_loss": test_loss.item(),
+                "test_esr": esr_val,
+            }
+        )
 
     print("Training complete. Saving model...")
     if cfg.ckpt_path:
         yaml.dump(final_params, open(cfg.ckpt_path, "w"), sort_keys=True)
         wandb.log_artifact(cfg.ckpt_path, type="parameters")
-
-    # run.summary["loss"] = final_params["loss"]
-    # run.summary["avg_coef"] = final_params["formated_params"]["rms_avg"]
-    # run.summary["ratio"] = final_params["formated_params"]["ratio"]
-    # run.summary["th"] = final_params["threshold"]
-    # run.summary["attack_ms"] = final_params["formated_params"]["attack_ms"]
-    # run.summary["make_up"] = final_params["make_up_gain"]
-    # if not cfg.compressor.simple:
-    #     run.summary["release_ms"] = final_params["formated_params"]["release_ms"]
 
     summary = {
         "loss": final_params["loss"],
