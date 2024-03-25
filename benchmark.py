@@ -9,8 +9,8 @@ from gen_mod_pulses import make_mod_signal
 
 th = torch.tensor(-10, dtype=torch.float32)
 ratio = torch.tensor(4, dtype=torch.float32)
-at = torch.tensor(0.02, dtype=torch.float32)
-rt = torch.tensor(0.003, dtype=torch.float32)
+at = torch.tensor(0.02, dtype=torch.float32, requires_grad=True)
+rt = torch.tensor(0.003, dtype=torch.float32, requires_grad=True)
 make_up = torch.tensor(0, dtype=torch.float32)
 rms_avg = torch.tensor(0.01, dtype=torch.float32)
 
