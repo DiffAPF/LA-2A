@@ -73,5 +73,8 @@ def freq_simple_compressor(x, avg_coef, th, ratio, at, make_up, delay: int = 0):
     return x * gain * db2amp(make_up).unsqueeze(1)
 
 
-def esr(pred, target):
-    return ((pred - target).norm()) / (target.norm())
+def esr(pred: torch.Tensor, target: torch.Tensor):
+    pred = pred.flatten()
+    target = target.flatten()
+    diff = pred - target
+    return (diff @ diff) / (target @ target)
