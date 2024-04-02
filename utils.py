@@ -1,5 +1,6 @@
 import torch
 from torchcomp import compexp_gain, avg, db2amp, amp2db
+from torch.autograd import Function
 
 
 def arcsigmoid(x: torch.Tensor) -> torch.Tensor:
@@ -78,3 +79,131 @@ def esr(pred: torch.Tensor, target: torch.Tensor):
     target = target.flatten()
     diff = pred - target
     return (diff @ diff) / (target @ target)
+
+
+class SPSACompressor(Function):
+    @staticmethod
+    def forward(ctx, x, avg_coef, th, ratio, at, rt, make_up, delay: int = 0):
+        ctx.save_for_backward(x, avg_coef, th, ratio, at, rt, make_up)
+        ctx.delay = delay
+        return compressor(x, avg_coef, th, ratio, at, rt, make_up, delay)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        x, avg_coef, th, ratio, at, rt, make_up = ctx.saved_tensors
+        delay = ctx.delay
+        requires_grad_mask = torch.tensor(
+            [ctx.needs_input_grad[i] for i in range(1, 7)],
+            device=x.device,
+            dtype=torch.bool,
+        )
+        delta = torch.randint(0, 2, (6,), device=x.device) * 2 - 1
+        eps = 0.00001
+
+        avg_coef_plus = (
+            torch.clamp(avg_coef + eps * delta[0], eps, 1 - eps)
+            if requires_grad_mask[0]
+            else avg_coef
+        )
+        avg_coef_minus = (
+            torch.clamp(avg_coef - eps * delta[0], eps, 1 - eps)
+            if requires_grad_mask[0]
+            else avg_coef
+        )
+
+        th_plus = th + eps * delta[1] if requires_grad_mask[1] else th
+        th_minus = th - eps * delta[1] if requires_grad_mask[1] else th
+
+        ratio_plus = (
+            torch.clamp_min(ratio + eps * delta[2], 1 + eps)
+            if requires_grad_mask[2]
+            else ratio
+        )
+        ratio_minus = (
+            torch.clamp_min(ratio - eps * delta[2], 1 + eps)
+            if requires_grad_mask[2]
+            else ratio
+        )
+
+        at_plus = (
+            torch.clamp(at + eps * delta[3], eps, 1 - eps)
+            if requires_grad_mask[3]
+            else at
+        )
+        at_minus = (
+            torch.clamp(at - eps * delta[3], eps, 1 - eps)
+            if requires_grad_mask[3]
+            else at
+        )
+
+        rt_plus = (
+            torch.clamp(rt + eps * delta[4], eps, 1 - eps)
+            if requires_grad_mask[4]
+            else rt
+        )
+        rt_minus = (
+            torch.clamp(rt - eps * delta[4], eps, 1 - eps)
+            if requires_grad_mask[4]
+            else rt
+        )
+
+        make_up_plus = make_up + eps * delta[5] if requires_grad_mask[5] else make_up
+        make_up_minus = make_up - eps * delta[5] if requires_grad_mask[5] else make_up
+
+        y_plus = compressor(
+            x, avg_coef_plus, th_plus, ratio_plus, at_plus, rt_plus, make_up_plus, delay
+        )
+        y_minus = compressor(
+            x,
+            avg_coef_minus,
+            th_minus,
+            ratio_minus,
+            at_minus,
+            rt_minus,
+            make_up_minus,
+            delay,
+        )
+        grad_num = (y_plus - y_minus).flatten() / (2 * eps)
+        grad_output = grad_output.flatten()
+        grad_params = grad_num @ grad_output
+
+        if requires_grad_mask[0]:
+            grad_avg_coef = grad_params / delta[0]
+        else:
+            grad_avg_coef = None
+
+        if requires_grad_mask[1]:
+            grad_th = grad_params / delta[1]
+        else:
+            grad_th = None
+
+        if requires_grad_mask[2]:
+            grad_ratio = grad_params / delta[2]
+        else:
+            grad_ratio = None
+
+        if requires_grad_mask[3]:
+            grad_at = grad_params / delta[3]
+        else:
+            grad_at = None
+
+        if requires_grad_mask[4]:
+            grad_rt = grad_params / delta[4]
+        else:
+            grad_rt = None
+
+        if requires_grad_mask[5]:
+            grad_make_up = grad_params / delta[5]
+        else:
+            grad_make_up = None
+
+        return (
+            None,
+            grad_avg_coef,
+            grad_th,
+            grad_ratio,
+            grad_at,
+            grad_rt,
+            grad_make_up,
+            None,
+        )
