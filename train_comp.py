@@ -13,7 +13,14 @@ from torchaudio.functional import lfilter
 from torchcomp import ms2coef, coef2ms, db2amp
 import pyloudnorm as pyln
 
-from utils import arcsigmoid, compressor, simple_compressor, freq_simple_compressor, esr
+from utils import (
+    arcsigmoid,
+    compressor,
+    simple_compressor,
+    freq_simple_compressor,
+    esr,
+    SPSACompressor,
+)
 
 
 @hydra.main(config_path="cfg", config_name="config")
@@ -120,16 +127,28 @@ def train(cfg: DictConfig):
         param_rt_logit = Parameter(arcsigmoid(init_rt))
         params["rt_logit"] = param_rt_logit
         param_rt = lambda: param_rt_logit.sigmoid()
-        infer = lambda x: compressor(
-            x,
-            avg_coef=param_rms_avg(),
-            th=param_th,
-            ratio=param_ratio(),
-            at=param_at(),
-            rt=param_rt(),
-            make_up=param_make_up_gain,
-            delay=comp_delay,
-        )
+        if cfg.compressor.spsa:
+            infer = lambda x: SPSACompressor.apply(
+                x,
+                param_rms_avg(),
+                param_th,
+                param_ratio(),
+                param_at(),
+                param_rt(),
+                param_make_up_gain,
+                comp_delay,
+            )
+        else:
+            infer = lambda x: compressor(
+                x,
+                avg_coef=param_rms_avg(),
+                th=param_th,
+                ratio=param_ratio(),
+                at=param_at(),
+                rt=param_rt(),
+                make_up=param_make_up_gain,
+                delay=comp_delay,
+            )
 
     # initialize optimiser
     optimiser = hydra.utils.instantiate(cfg.optimiser, params.values())
@@ -156,8 +175,8 @@ def train(cfg: DictConfig):
     # filtered_esr = lambda x, y: esr(prefilter(x), prefilter(y))
 
     def dump_params(loss=None):
-        # convert parms to dict for yaml
-        final_params = {k: v.item() for k, v in params.items()}
+        # convert params to dict for yaml
+        out = {k: v.item() for k, v in params.items()}
 
         formated = {
             "attack_ms": c2m(param_at()).item(),
@@ -168,10 +187,10 @@ def train(cfg: DictConfig):
         if not cfg.compressor.simple:
             formated["release_ms"] = c2m(param_rt()).item()
 
-        final_params["formated_params"] = formated
+        out["formated_params"] = formated
         if loss is not None:
-            final_params["loss"] = loss
-        return final_params
+            out["loss"] = loss
+        return out
 
     final_params = dump_params()
 
@@ -240,14 +259,14 @@ def train(cfg: DictConfig):
 
         pred = prefilter(infer(test_input))
 
-        test_loss = loss_fn(pred, test_target)
+        test_loss = loss_fn(pred, test_target).item()
 
         esr_val = esr(pred, test_target).item()
-        print(f"Test loss: {test_loss.item()}")
-        print((f"Test ESR: {esr_val}"))
+        print(f"Test loss: {test_loss}")
+        print(f"Test ESR: {esr_val}")
         wandb.log(
             {
-                "test_loss": test_loss.item(),
+                "test_loss": test_loss,
                 "test_esr": esr_val,
             }
         )
