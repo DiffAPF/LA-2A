@@ -26,7 +26,13 @@ def compressor(x, avg_coef, th, ratio, at, rt, make_up, delay: int = 0):
     )
     if delay > 0:
         gain = torch.cat([gain[:, delay:], gain.new_ones(gain.shape[0], delay)], dim=1)
-    return x * gain * db2amp(make_up).broadcast_to(x.shape[0], 1)
+    return (
+        x
+        * gain
+        * db2amp(torch.tensor(make_up, device=x.device, dtype=x.dtype)).broadcast_to(
+            x.shape[0], 1
+        )
+    )
 
 
 def simple_compressor(x, avg_coef, th, ratio, at, *args, **kwargs):
