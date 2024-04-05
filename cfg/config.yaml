@@ -1,0 +1,36 @@
+defaults:
+  - data: la2a_50
+
+epochs: 1000
+ckpt_path: ckpt.yaml
+compressor:
+  freq_sampling: false
+  simple: false
+  inits:
+    rms_avg: 0.3
+    threshold: -10.0
+    ratio: 2
+    attack_ms: 50
+    release_ms: 50
+    make_up_gain: 0
+  delay: 0
+  init_config: null
+  spsa: false
+
+optimiser:
+  _target_: torch.optim.SGD
+  lr: 100
+  momentum: 0.9
+
+scheduler:
+  _target_: torch.optim.lr_scheduler.LinearLR
+  start_factor: 1.0
+  end_factor: 1.0
+  total_iters: ${epochs}
+
+loss_fn:
+  _target_: torch.nn.L1Loss
+  reduction: mean
+
+wandb_init:
+  project: dafx24

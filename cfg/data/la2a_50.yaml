@@ -1,0 +1,11 @@
+train:
+  start: 0
+  end: 300
+  input: /import/c4dm-datasets/SignalTrain_LA2A_Dataset_1.1/Val/input_148_.wav
+  target: /import/c4dm-datasets/SignalTrain_LA2A_Dataset_1.1/Val/target_148_LA2A_3c__0__50.wav
+
+test:
+  start: 300
+  end: 1200
+  input: ${..train.input}
+  target: ${..train.target}

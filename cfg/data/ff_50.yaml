@@ -1,0 +1,10 @@
+train:
+  start: 0
+  end: 300
+  input: /import/c4dm-datasets/SignalTrain_LA2A_Dataset_1.1/Train/input_143_.wav
+  target: /homes/cy006/work/dafx24/r5_at30_rt30_avg003_th-20_0db.wav
+test:
+  start: 300
+  end: 1200
+  input: ${..train.input}
+  target: ${..train.target}
