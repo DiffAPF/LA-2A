@@ -1,4 +1,4 @@
-# Mathcing LA-2A with a digital compressor
+# Matching LA-2A with a digital compressor
 
 Source code to reproduce the compressor experiment in the paper [Differentiable All-pole Filters for Time-varying Audio Systems]().
 
@@ -35,7 +35,24 @@ python train_comp.py data=la2a_50 compressor.simple=true compressor.freq_samplin
 A `ckpt.yaml` will be created under the logging folder (under `outputs/` by default) after training, which contains the parameters of the lowest training loss model.
 We also provide our trained parameters under the folder `learned_params/`, with filenames as `[method]_[peak_reduction].yaml`.
 
+## Evaluation
+
+You can use your checkpoints `ckpt.yaml` or our provided learned parameters to evaluate the compressor.
+Given a wave file, you can compress it using the following command:
+
+```bash
+python test_comp.py ckpt.yaml input.wav output.wav
+```
 
 
 ## Additional notes
 - `cfg/data/ff_*.yaml` are configurations for the feed-forward compressor experiments (FF-A/B/C in the paper). Please use `digital_compressor.py` to get the targets if you want to reproduce the experiments.
+
+## Links
+
+- [torchcomp](https://github.com/yoyololicon/torchcomp): Differentiable compressor implementation.
+- [training logs](https://wandb.ai/iamycy/torchcomp-la2a/): All training logs of the compressor experiments in the paper.
+
+## Citation
+
+Coming soon.
