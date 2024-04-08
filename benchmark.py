@@ -1,4 +1,3 @@
-import argparse
 from utils import compressor, freq_simple_compressor
 from functools import partial
 import torch
