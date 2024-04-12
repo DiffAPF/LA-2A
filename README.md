@@ -1,6 +1,22 @@
-# Matching LA-2A with a digital compressor
+<div align="center">
+<h1>Differentiable All-pole Filters for Time-varying Audio Systems</h1>
 
-Source code to reproduce the compressor experiment in the paper [Differentiable All-pole Filters for Time-varying Audio Systems]().
+<p>
+    <a href="https://yoyololicon.github.io/" target=”_blank”>Chin-Yun Yu</a>,
+    <a href="https://christhetr.ee/" target=”_blank”>Christopher Mitcheltree</a>,
+    <a href="https://www.linkedin.com/in/alistair-carson-a6178919a/" target=”_blank”>Alistair Carson</a>,
+    <a href="https://www.acoustics.ed.ac.uk/group-members/dr-stefan-bilbao/" target=”_blank”>Stefan Bilbao</a>,
+    <a href="https://www.eecs.qmul.ac.uk/~josh/" target=”_blank”>Joshua D. Reiss</a>, and
+    <a href="https://www.eecs.qmul.ac.uk/~gyorgyf/about.html" target=”_blank”>György Fazekas</a>
+</p>
+
+[![arXiv](https://img.shields.io/badge/arXiv-2404.07970-b31b1b.svg)](https://arxiv.org/abs/2404.07970)
+[![Listening Samples](https://img.shields.io/badge/%F0%9F%94%8A%F0%9F%8E%B6-Listening_Samples-blue)](https://diffapf.github.io/web/)
+[![Plugins](https://img.shields.io/badge/neutone-Plugins-blue)](https://diffapf.github.io/web/index.html#plugins)
+[![License](https://img.shields.io/badge/License-MPL%202.0-orange)](https://www.mozilla.org/en-US/MPL/2.0/FAQ/)
+
+<h2>Feed-forward Compressor (<em>LA-2A</em>) Experiments</h2>
+</div>
 
 ## Getting started
 
