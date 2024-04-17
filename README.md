@@ -71,4 +71,13 @@ python test_comp.py ckpt.yaml input.wav output.wav
 
 ## Citation
 
-Coming soon.
+```bibtex
+@misc{ycy2024diffapf,
+  title={Differentiable All-pole Filters for Time-varying Audio Systems},
+  author={Chin-Yun Yu and Christopher Mitcheltree and Alistair Carson and Stefan Bilbao and Joshua D. Reiss and György Fazekas},
+  year={2024},
+  eprint={2404.07970},
+  archivePrefix={arXiv},
+  primaryClass={eess.AS}
+}
+```
