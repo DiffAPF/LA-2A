@@ -76,6 +76,6 @@ python test_comp.py ckpt.yaml input.wav output.wav
   title={Differentiable All-pole Filters for Time-varying Audio Systems},
   author={Chin-Yun Yu and Christopher Mitcheltree and Alistair Carson and Stefan Bilbao and Joshua D. Reiss and György Fazekas},
   booktitle={International Conference on Digital Audio Effects (DAFx)},
-  year={2024},
+  year={2024}
 }
 ```
